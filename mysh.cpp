@@ -22,6 +22,7 @@ typedef int (*FnPtr)();
 map<string, FnPtr> func_bindings;
 string current_directory = "/";
 vector<string> temp_history;
+bool quit_flag = false;
 
 int tokenize(string& line, vector<string>& tokens)
 {
@@ -78,6 +79,8 @@ int history(string arg = "")
 
 int bye_bye()
 {
+    quit_flag = true;
+
     return 0;
 }
 
@@ -195,9 +198,7 @@ int main () {
 
     func_bindings["whereami"] = where_am_i;
 
-    bool quit_flag = false;
-
-    while (input != "quit")
+    while (!quit_flag)
     {
         // Clear the tokens each cycle.
         tokens.clear();
@@ -216,6 +217,7 @@ int main () {
                 
         history();
 
+        bye_bye();
     }
     
     save_history(temp_history);
