@@ -20,7 +20,8 @@ using std::ifstream;
 // void func
 typedef int (*FnPtr)();
 map<string, FnPtr> func_bindings;
-
+string current_directory = "/";
+vector<string> temp_history;
 
 int tokenize(string& line, vector<string>& tokens)
 {
@@ -38,27 +39,40 @@ int tokenize(string& line, vector<string>& tokens)
 
 int move_to_dir(string path)
 {
-    fork();
 
-    int code = execl(&path[0], "cd",(char*)0);
-
-    cout << errno << '\n';
-    cout << get_current_dir_name() << std::endl;
 
     return 0;
 }
 
 int where_am_i()
 {
-    string current_dir = get_current_dir_name();
+    if (current_directory == "")
+        return -1;
 
-    cout << current_dir << std::endl;
-    
+
+    cout << current_directory << std::endl;
+
     return 0;
 }
 
-int history()
+int history(string arg = "")
 {
+    // Argument passed to clear the history.
+    if(arg == "-c")
+    {
+        temp_history.clear();
+        return 0;
+    }
+
+    // Cannot print history if no history exists.
+    if(temp_history.size() <= 0)
+        return 1;
+    
+    for(int i = 0; i < temp_history.size(); i++)
+    {
+        cout << i << ": " << temp_history[i] << '\n';
+    }
+
     return 0;
 }
 
@@ -67,8 +81,21 @@ int bye_bye()
     return 0;
 }
 
-int replay_number()
+int replay_number(char& specified, vector<string>& history)
 {
+    // Read the history and pass the line at 
+    try
+    {
+        string line = history[(int) specified];
+
+        cout << line << '\n';
+    }
+    catch(const std::exception& e)
+    {
+        std::cerr << e.what() << '\n';
+        return -1;
+    }
+
     return 0;
 }
 
@@ -162,10 +189,9 @@ int main () {
 
     string input = "";
 
-    vector<string> history;
     vector<string> tokens;
 
-    load_history(history);
+    load_history(temp_history);
 
     func_bindings["whereami"] = where_am_i;
 
@@ -184,15 +210,15 @@ int main () {
         getline(cin, input);
 
         // Save each line after inputs since we need this for the history.
-        history.push_back(input);
+        temp_history.push_back(input);
 
         tokenize(input, tokens);
-        
-        move_to_dir("..");
+                
+        history();
 
     }
     
-    save_history(history);
+    save_history(temp_history);
 
     return 0;
 }
