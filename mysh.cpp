@@ -5,6 +5,7 @@
 #include <bits/stdc++.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 #include <cstdarg>
 #include <map>
 
@@ -41,6 +42,34 @@ int tokenize(string& line, vector<string>& tokens)
 int move_to_dir(string path)
 {
 
+    struct stat buffer;
+    int status = stat(&path[0], &buffer);
+
+    if(-1 == status)
+    {
+        if (ENOENT == errno)
+        {
+            cout << "The specified directory " << '\"' << path << '\"' << " does not exist." << '\n';
+            return -1;
+        }
+        else
+        {
+            perror("stat");
+            exit(1);
+        }
+    }
+    else
+    {
+        if(S_ISDIR(buffer.st_mode))
+        {
+            current_directory = path;
+        }
+        else
+        {
+            cout << "The specified directory " << '\"' << path << '\"' << " is a file, not a directory." << '\n';
+            return -1;
+        }
+    }
 
     return 0;
 }
@@ -48,7 +77,7 @@ int move_to_dir(string path)
 int where_am_i()
 {
     if (current_directory == "")
-        return -1;
+        return 1;
 
 
     cout << current_directory << std::endl;
@@ -84,33 +113,38 @@ int bye_bye()
     return 0;
 }
 
-int replay_number(char& specified, vector<string>& history)
+int replay_number(string number)
 {
-    // Read the history and pass the line at 
-    try
-    {
-        string line = history[(int) specified];
+    
 
-        cout << line << '\n';
-    }
-    catch(const std::exception& e)
-    {
-        std::cerr << e.what() << '\n';
-        return -1;
-    }
 
     return 0;
 }
 
 int start_program(string program, const string args[])
 {
-    fork();
+    if(program.length() <= 0)
+        return -1;
 
+    string target_path = "";
     
+    if(program[0] == '/')
+        target_path = program;
+    else
+        target_path = current_directory + '/' + program;
+    
+    int pid;
+
+    string param = "-E";
+    char* arg[] = {&param[0], NULL};
+
     int status;
 
-    waitpid(-1, &status, 0);
+    if(!(pid = fork()))
+        execvp(&target_path[0], arg);
 
+    waitpid(-1, &status, 0);
+    
     return 0;
 }
 
@@ -217,7 +251,8 @@ int main () {
                 
         history();
 
-        bye_bye();
+        start_program("/usr/bin/vim", NULL);
+
     }
     
     save_history(temp_history);
