@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <cstdarg>
 #include <map>
+#include <dirent.h>
 
 using std::string;
 using std::cout;
@@ -18,6 +19,7 @@ using std::stringstream;
 using std::ofstream;
 using std::ifstream;
 
+
 string current_directory = "/";
 vector<string> temp_history;
 bool quit_flag = false;
@@ -25,7 +27,10 @@ bool quit_flag = false;
 enum commands 
 {
     WHEREAMI,
-    MOVETODIR
+    MOVETODIR,
+    BYEBYE,
+    START,
+    INVALID
 };
 
 map<string, commands> commandMap;
@@ -45,11 +50,40 @@ int tokenize(string& line, vector<string>& tokens)
     return 0;
 }
 
+int list()
+{
+    DIR *dir;
+    struct dirent *ent;
+    if ((dir = opendir (&current_directory[0])) != NULL) {
+    /* print all the files and directories within directory */
+    while ((ent = readdir (dir)) != NULL) {
+        printf ("%s\n", ent->d_name);
+    }
+    closedir (dir);
+    } else {
+    /* could not open directory */
+    perror ("");
+    return EXIT_FAILURE;
+    }
+
+    return 0;
+}
+
+// Maybe I can create a path joining function.
+
 int move_to_dir(string path)
 {
 
     struct stat buffer;
-    int status = stat(&path[0], &buffer);
+
+    if(path.length() <= 0)
+        return -1;
+
+    string relative_path =(current_directory + '/' + path);
+
+    string target_path = path[0] == '/' ? path : relative_path;
+
+    int status = stat(&target_path[0], &buffer);
 
     if(-1 == status)
     {
@@ -68,7 +102,7 @@ int move_to_dir(string path)
     {
         if(S_ISDIR(buffer.st_mode))
         {
-            current_directory = path;
+            current_directory = target_path;
         }
         else
         {
@@ -127,7 +161,7 @@ int replay_number(string number)
     return 0;
 }
 
-int start_program(string program, const string args[])
+int start_program(string program, char *const args[])
 {
     if(program.length() <= 0)
         return -1;
@@ -139,15 +173,10 @@ int start_program(string program, const string args[])
     else
         target_path = current_directory + '/' + program;
     
-    int pid;
-
-    string param = "-E";
-    char* arg[] = {&param[0], NULL};
-
-    int status;
+    int pid, status;
 
     if(!(pid = fork()))
-        execvp(&target_path[0], arg);
+        execv(&target_path[0], args);
 
     waitpid(-1, &status, 0);
     
@@ -178,20 +207,24 @@ int dalek_all()
 
 void command_dispatcher(vector<string>& tokens)
 {
+    if(tokens.size() < 1)
+        return;
 
     string command_s = tokens[0];
-    commands command;
 
+    commands command = INVALID;
+
+    // Try to find a mapping of the supplied command.
     try
     {
-        command = commandMap[command_s];
+        command = commandMap.at(command_s);
     }
     catch(const std::exception& e)
     {
         std::cerr << e.what() << '\n';
     }
     
-
+    
     switch (command)
     {
     case WHEREAMI:
@@ -199,13 +232,30 @@ void command_dispatcher(vector<string>& tokens)
         break;
     case MOVETODIR:
         move_to_dir(tokens[1]);
-    default:
+        break;
+    case BYEBYE:
+        bye_bye();
+        break;
+    case START:
+    {
+        string stuff = tokens[1];
+        char* args[tokens.size() - 1];
+
+        for(int i = 2; i < tokens.size(); i++)
+        {
+            args[i - 2] = &tokens[i][0];
+        }
+
+        args[tokens.size() - 1] = NULL;
+
+        start_program(stuff, args);
+
         break;
     }
-    
-
-
-
+    default:
+        cout << "Unkown command: " << tokens[0] << '\n';
+        break;
+    }
 }
 
 int load_history(vector<string>& history)
@@ -259,9 +309,11 @@ int main () {
     string input = "";
 
     vector<string> tokens;
-    
+
     commandMap["whereami"] = WHEREAMI;
     commandMap["movetodir"] = MOVETODIR;
+    commandMap["byebye"] = BYEBYE;
+    commandMap["start"] = START;
 
     load_history(temp_history);
 
@@ -271,6 +323,9 @@ int main () {
         // Clear the tokens each cycle.
         tokens.clear();
 
+
+        // To show the currentDirectory to view navigation.
+        cout << current_directory;
         // Once accepting input and what not, it will always lead with a #
         cout << "# ";
 
