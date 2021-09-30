@@ -18,12 +18,18 @@ using std::stringstream;
 using std::ofstream;
 using std::ifstream;
 
-// void func
-typedef int (*FnPtr)();
-map<string, FnPtr> func_bindings;
 string current_directory = "/";
 vector<string> temp_history;
 bool quit_flag = false;
+
+enum commands 
+{
+    WHEREAMI,
+    MOVETODIR
+};
+
+map<string, commands> commandMap;
+
 
 int tokenize(string& line, vector<string>& tokens)
 {
@@ -172,7 +178,33 @@ int dalek_all()
 
 void command_dispatcher(vector<string>& tokens)
 {
-    func_bindings[tokens.front()]();
+
+    string command_s = tokens[0];
+    commands command;
+
+    try
+    {
+        command = commandMap[command_s];
+    }
+    catch(const std::exception& e)
+    {
+        std::cerr << e.what() << '\n';
+    }
+    
+
+    switch (command)
+    {
+    case WHEREAMI:
+        where_am_i();
+        break;
+    case MOVETODIR:
+        move_to_dir(tokens[1]);
+    default:
+        break;
+    }
+    
+
+
 
 }
 
@@ -227,10 +259,12 @@ int main () {
     string input = "";
 
     vector<string> tokens;
+    
+    commandMap["whereami"] = WHEREAMI;
+    commandMap["movetodir"] = MOVETODIR;
 
     load_history(temp_history);
 
-    func_bindings["whereami"] = where_am_i;
 
     while (!quit_flag)
     {
@@ -249,10 +283,7 @@ int main () {
 
         tokenize(input, tokens);
                 
-        history();
-
-        start_program("/usr/bin/vim", NULL);
-
+        command_dispatcher(tokens);
     }
     
     save_history(temp_history);
