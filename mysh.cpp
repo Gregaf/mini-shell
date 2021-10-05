@@ -20,7 +20,7 @@ using std::ofstream;
 using std::ifstream;
 
 
-string current_directory = "/";
+string current_directory = "/home/gregaf300/OS-Class/Assignment_2";
 vector<string> temp_history;
 bool quit_flag = false;
 
@@ -73,23 +73,22 @@ int list()
 
 int move_to_dir(string path)
 {
-
-    struct stat buffer;
-
     if(path.length() <= 0)
         return -1;
 
     string relative_path =(current_directory + '/' + path);
 
+    // Determine if its absolute path or relative.
     string target_path = path[0] == '/' ? path : relative_path;
 
+    struct stat buffer;
     int status = stat(&target_path[0], &buffer);
 
     if(-1 == status)
     {
         if (ENOENT == errno)
         {
-            cout << "The specified directory " << '\"' << path << '\"' << " does not exist." << '\n';
+            cout << "The specified directory " << '\"' << target_path << '\"' << " does not exist." << '\n';
             return -1;
         }
         else
@@ -106,7 +105,7 @@ int move_to_dir(string path)
         }
         else
         {
-            cout << "The specified directory " << '\"' << path << '\"' << " is a file, not a directory." << '\n';
+            cout << "The specified directory " << '\"' << target_path << '\"' << " is a file, not a directory." << '\n';
             return -1;
         }
     }
@@ -120,7 +119,7 @@ int where_am_i()
         return 1;
 
 
-    cout << current_directory << std::endl;
+    cout << current_directory << '\n';
 
     return 0;
 }
@@ -176,7 +175,9 @@ int start_program(string program, char *const args[])
     int pid, status;
 
     if(!(pid = fork()))
-        execv(&target_path[0], args);
+        execvp(&target_path[0], args);
+
+    perror("execvp");
 
     waitpid(-1, &status, 0);
     
@@ -241,13 +242,16 @@ void command_dispatcher(vector<string>& tokens)
         string stuff = tokens[1];
         char* args[tokens.size() - 1];
 
+        args[0] = &stuff[0];
+
         for(int i = 2; i < tokens.size(); i++)
         {
-            args[i - 2] = &tokens[i][0];
+            args[i - 1] = &tokens[i][0];
+            
         }
-
+        
         args[tokens.size() - 1] = NULL;
-
+        
         start_program(stuff, args);
 
         break;
@@ -310,9 +314,9 @@ int main () {
 
     vector<string> tokens;
 
-    commandMap["whereami"] = WHEREAMI;
-    commandMap["movetodir"] = MOVETODIR;
-    commandMap["byebye"] = BYEBYE;
+    commandMap["pwd"] = WHEREAMI;
+    commandMap["move"] = MOVETODIR;
+    commandMap["bye"] = BYEBYE;
     commandMap["start"] = START;
 
     load_history(temp_history);
@@ -322,7 +326,6 @@ int main () {
     {
         // Clear the tokens each cycle.
         tokens.clear();
-
 
         // To show the currentDirectory to view navigation.
         cout << current_directory;
