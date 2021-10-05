@@ -12,13 +12,9 @@
 
 using std::string;
 using std::cout;
-using std::cin;
 using std::vector;
 using std::map;
-using std::stringstream;
-using std::ofstream;
-using std::ifstream;
-
+using std::unordered_set;
 
 string current_directory = "/home/gregaf300/OS-Class/Assignment_2";
 vector<string> temp_history;
@@ -30,21 +26,84 @@ enum commands
     MOVETODIR,
     BYEBYE,
     START,
+    HISTORY,
+    REPLAY,
     INVALID
 };
 
 map<string, commands> commandMap;
 
+// Used to determine if something is a delimeter. Only space for this case.
+unordered_set<char> delimeters ({' '});
+void command_dispatcher(vector<string>& tokens);
+
+
+// int tokenize(string& line, vector<string>& tokens)
+// {
+//     // There is nothing to parse, cant tokenize.
+//     if(line.empty())
+//         return -1;
+
+//     std::stringstream check(line);
+
+//     string temp_store;
+
+    
+//     while (getline(check, temp_store, ' '))
+//     {
+//         // TODO
+//         // " " I want to interpret that is one string.
+
+
+//         tokens.push_back(temp_store);
+//     }
+
+//     return 0;
+// }
 
 int tokenize(string& line, vector<string>& tokens)
 {
-    stringstream check(line);
+    int n = line.length();
+    int start = 0, i = 0;
 
-    string temp_store;
-
-    while (getline(check, temp_store, ' '))
+    for(i = 0; i < n; i++)
     {
-        tokens.push_back(temp_store);
+        // Parses based on spaces, reguardless of number of spaces.
+        if(line[i] == ' ')
+        {
+            tokens.push_back(line.substr(start, i - start));
+
+            while(i < n && line[i] == ' ')
+                i++;
+            
+           
+            if(line[i] == ' ')
+                return 0;
+
+            start = i;
+        }
+        // Handles edge case where we end with no space.
+        else if(i == n -1)
+        {
+            tokens.push_back(line.substr(start, (i + 1) - start));
+        }
+
+        if(line[i] == '"')
+        {
+            i++;
+            
+            while(i < n && line[i] != '"')
+            {
+                i++;
+            }
+            
+            tokens.push_back(line.substr(start, (i + 1) - start));
+            
+            while(i < n && line[i] == ' ' || line[i] == '"')
+                i++;
+
+            start = i;
+        }
     }
 
     return 0;
@@ -124,7 +183,7 @@ int where_am_i()
     return 0;
 }
 
-int history(string arg = "")
+int history(const string& arg = "")
 {
     // Argument passed to clear the history.
     if(arg == "-c")
@@ -154,16 +213,62 @@ int bye_bye()
 
 int replay_number(string number)
 {
-    
 
+    int target_number = std::stoi(number);
+
+    try
+    {
+        string command = temp_history[target_number];
+
+        vector<string> tokens;
+
+        tokenize(command, tokens);
+
+        command_dispatcher(tokens);
+    }
+    catch(const std::exception& e)
+    {
+        std::cerr << e.what() << '\n';
+        return -1;
+    }
+    
+    return 0;
+}
+
+int program_validation(const vector<string>& tokens, string args[])
+{
+    // [0] = command name
+    // [1] = executing file
+    // [1...n] = Arguments
+    // [n] = NULL
+
+    int n = tokens.size();
+
+    for(int i = 1; i < n - 1; i++)
+    {
+        args[i] = tokens[i];
+    }
 
     return 0;
 }
 
-int start_program(string program, char *const args[])
+int start_program(const vector<string>& tokens)
 {
-    if(program.length() <= 0)
-        return -1;
+    // Need to validate input here instead
+    // Makes more sense to handle its own validation based on what it expects.
+    string args[tokens.size()];
+
+    // if(program_validation(tokens, args) != 0)
+    //     return -1;
+    
+    args->c_str();
+
+    for(auto& arg : args)
+    {
+        cout << arg << '\n';
+    }
+
+    string program = tokens[0];
 
     string target_path = "";
     
@@ -174,8 +279,8 @@ int start_program(string program, char *const args[])
     
     int pid, status;
 
-    if(!(pid = fork()))
-        execvp(&target_path[0], args);
+    //if(!(pid = fork()))
+        //execvp(&target_path[0], args->c_str());
 
     perror("execvp");
 
@@ -184,9 +289,10 @@ int start_program(string program, char *const args[])
     return 0;
 }
 
-int background_program()
+int background_program(const vector<string>& tokens)
 {
-    
+
+
 
     return 0;
 }
@@ -238,22 +344,19 @@ void command_dispatcher(vector<string>& tokens)
         bye_bye();
         break;
     case START:
+    {   
+        start_program(tokens);
+
+        break;
+    }
+    case HISTORY:
     {
-        string stuff = tokens[1];
-        char* args[tokens.size() - 1];
-
-        args[0] = &stuff[0];
-
-        for(int i = 2; i < tokens.size(); i++)
-        {
-            args[i - 1] = &tokens[i][0];
-            
-        }
-        
-        args[tokens.size() - 1] = NULL;
-        
-        start_program(stuff, args);
-
+        history();
+        break;
+    }
+    case REPLAY:
+    {
+        replay_number(tokens[1]);
         break;
     }
     default:
@@ -265,7 +368,7 @@ void command_dispatcher(vector<string>& tokens)
 int load_history(vector<string>& history)
 {
     string line;
-    ifstream history_file("history.log");
+    std::ifstream history_file("history.log");
     
     if(history_file.is_open())
     {
@@ -288,7 +391,7 @@ int load_history(vector<string>& history)
 
 int save_history(vector<string>& history)
 {
-    ofstream history_file("history.log");
+    std::ofstream history_file("history.log");
     
     if(history_file.is_open())
     {
@@ -318,6 +421,8 @@ int main () {
     commandMap["move"] = MOVETODIR;
     commandMap["bye"] = BYEBYE;
     commandMap["start"] = START;
+    commandMap["history"] = HISTORY;
+    commandMap["replay"] = REPLAY;
 
     load_history(temp_history);
 
@@ -334,14 +439,19 @@ int main () {
 
         input = "";
 
-        getline(cin, input);
+        getline(std::cin, input);
 
         // Save each line after inputs since we need this for the history.
         temp_history.push_back(input);
 
         tokenize(input, tokens);
-                
-        command_dispatcher(tokens);
+
+        for(auto& token : tokens)
+        {
+            cout  << token << '\n';
+        }
+
+        //command_dispatcher(tokens);
     }
     
     save_history(temp_history);
