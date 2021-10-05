@@ -16,7 +16,7 @@ using std::vector;
 using std::map;
 using std::unordered_set;
 
-string current_directory = "/home/gregaf300/OS-Class/Assignment_2";
+string current_directory = "";
 vector<string> temp_history;
 bool quit_flag = false;
 
@@ -33,74 +33,35 @@ enum commands
 
 map<string, commands> commandMap;
 
-// Used to determine if something is a delimeter. Only space for this case.
-unordered_set<char> delimeters ({' '});
 void command_dispatcher(vector<string>& tokens);
 
 int tokenize(string& line, vector<string>& tokens)
 {
-    int n = line.length();
-    int start = 0, i = 0;
+    int counter = 0;
+    string temp;
+    std::stringstream stream_in(line);
 
-    for(i = 0; i < n; i++)
+    while (getline(stream_in, temp, '"'))
     {
-        // Parses based on spaces, reguardless of number of spaces.
-        if(line[i] == ' ')
+        counter++;
+
+        if(counter % 2 == 0)
         {
-            tokens.push_back(line.substr(start, i - start));
-
-            while(i < n && line[i] == ' ')
-                i++;
-            
-           
-            if(line[i] == ' ')
-                return 0;
-
-            start = i;
+            if(!temp.empty())
+                tokens.push_back(temp);
         }
-        // Handles edge case where we end with no space.
-        else if(i == n -1)
+        else
         {
-            tokens.push_back(line.substr(start, (i + 1) - start));
-        }
-
-        if(line[i] == '"')
-        {
-            i++;
-            
-            while(i < n && line[i] != '"')
+            std::stringstream stream_segment(temp);
+            while (getline(stream_segment, temp, ' '))
             {
-                i++;
+                if(!temp.empty())
+                    tokens.push_back(temp);
             }
             
-            tokens.push_back(line.substr(start, (i + 1) - start));
-            
-            while(i < n && line[i] == ' ' || line[i] == '"')
-                i++;
-
-            start = i;
         }
     }
-
-    return 0;
-}
-
-int list()
-{
-    DIR *dir;
-    struct dirent *ent;
-    if ((dir = opendir (&current_directory[0])) != NULL) {
-    /* print all the files and directories within directory */
-    while ((ent = readdir (dir)) != NULL) {
-        printf ("%s\n", ent->d_name);
-    }
-    closedir (dir);
-    } else {
-    /* could not open directory */
-    perror ("");
-    return EXIT_FAILURE;
-    }
-
+    
     return 0;
 }
 
@@ -115,6 +76,9 @@ int move_to_dir(string path)
 
     // Determine if its absolute path or relative.
     string target_path = path[0] == '/' ? path : relative_path;
+
+    // /home/thing --> cd .. --> /home
+    // home, . do nothing, .. pop the stack, valid push new name.
 
     struct stat buffer;
     int status = stat(&target_path[0], &buffer);
@@ -187,11 +151,11 @@ int bye_bye()
     return 0;
 }
 
-int replay_number(string number)
+int replay_number(const string& number)
 {
-
     int target_number = std::stoi(number);
-
+    
+    
     try
     {
         string command = temp_history[target_number];
@@ -291,7 +255,7 @@ int dalek_all()
 void command_dispatcher(vector<string>& tokens)
 {
     if(tokens.size() < 1)
-        return;
+       return;
 
     string command_s = tokens[0];
 
