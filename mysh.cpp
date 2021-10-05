@@ -37,30 +37,6 @@ map<string, commands> commandMap;
 unordered_set<char> delimeters ({' '});
 void command_dispatcher(vector<string>& tokens);
 
-
-// int tokenize(string& line, vector<string>& tokens)
-// {
-//     // There is nothing to parse, cant tokenize.
-//     if(line.empty())
-//         return -1;
-
-//     std::stringstream check(line);
-
-//     string temp_store;
-
-    
-//     while (getline(check, temp_store, ' '))
-//     {
-//         // TODO
-//         // " " I want to interpret that is one string.
-
-
-//         tokens.push_back(temp_store);
-//     }
-
-//     return 0;
-// }
-
 int tokenize(string& line, vector<string>& tokens)
 {
     int n = line.length();
@@ -446,12 +422,7 @@ int main () {
 
         tokenize(input, tokens);
 
-        for(auto& token : tokens)
-        {
-            cout  << token << '\n';
-        }
-
-        //command_dispatcher(tokens);
+        command_dispatcher(tokens);
     }
     
     save_history(temp_history);
