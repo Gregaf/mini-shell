@@ -14,10 +14,11 @@ using std::string;
 using std::cout;
 using std::vector;
 using std::map;
-using std::unordered_set;
+using std::stack;
 
-string current_directory = "";
+string current_directory = "/home/gregaf300/OS-Class/Assignment_2";
 vector<string> temp_history;
+stack<string> curent_dir_s;
 bool quit_flag = false;
 
 enum commands 
@@ -26,6 +27,7 @@ enum commands
     MOVETODIR,
     BYEBYE,
     START,
+    BACKGROUND,
     HISTORY,
     REPLAY,
     INVALID
@@ -65,7 +67,39 @@ int tokenize(string& line, vector<string>& tokens)
     return 0;
 }
 
-// Maybe I can create a path joining function.
+// This handles relative path .. and . to allow for forward and backward traversing.
+string fix_path(string& fixed_path)
+{
+    vector<string> temp_path_names;
+    std::stringstream stream_in(fixed_path);
+    string temp;
+    string new_path = "/";
+    
+    // Parse based on /'s
+    while (getline(stream_in, temp, '/'))
+    {
+        if(!temp.empty())
+        {
+            if (temp == "..")
+            {
+                temp_path_names.pop_back();
+            }
+            else if(temp == ".")
+                continue;
+            else
+                temp_path_names.push_back(temp);
+        }
+    }
+    
+    for(auto& path_name : temp_path_names)
+    {
+        new_path += path_name + '/';
+    }
+
+    new_path = new_path.substr(0, new_path.size() - 1);
+
+    return new_path;
+}
 
 int move_to_dir(string path)
 {
@@ -77,8 +111,10 @@ int move_to_dir(string path)
     // Determine if its absolute path or relative.
     string target_path = path[0] == '/' ? path : relative_path;
 
+    target_path = fix_path(target_path);
     // /home/thing --> cd .. --> /home
     // home, . do nothing, .. pop the stack, valid push new name.
+    // home/test/..
 
     struct stat buffer;
     int status = stat(&target_path[0], &buffer);
@@ -123,18 +159,40 @@ int where_am_i()
     return 0;
 }
 
-int history(const string& arg = "")
+int history(const vector<string>& tokens)
 {
-    // Argument passed to clear the history.
-    if(arg == "-c")
+    // We have more than one argument
+    if(tokens.size() > 2)
     {
-        temp_history.clear();
-        return 0;
+        cout << "Invalid number of arguments." << '\n';
+        return -1;
+    }
+
+    // Argument was passed, check if its -c
+    if(tokens.size() == 2)
+    {
+        string arg = tokens[1];
+        
+        // May need to clear the log file too, not sure.
+        if(arg == "-c")
+        {
+            temp_history.clear();
+            cout << "History has been cleared." << '\n';
+            return 0;
+        }
+        else
+        {
+            cout << "Invalid argument passed" << '\n';
+            return -1;
+        }
     }
 
     // Cannot print history if no history exists.
     if(temp_history.size() <= 0)
-        return 1;
+    {
+        cout << "There is no history to display." << '\n';
+        return -1;
+    }
     
     for(int i = 0; i < temp_history.size(); i++)
     {
@@ -153,12 +211,15 @@ int bye_bye()
 
 int replay_number(const string& number)
 {
-    int target_number = std::stoi(number);
-    
+    int target_number;
     
     try
     {
-        string command = temp_history[target_number];
+        // Conver the passed number to a integer.
+        target_number = std::stoi(number);
+
+        // Get the index of the target number within the history.
+        string command = temp_history.at(target_number);
 
         vector<string> tokens;
 
@@ -166,52 +227,65 @@ int replay_number(const string& number)
 
         command_dispatcher(tokens);
     }
-    catch(const std::exception& e)
-    {
+    catch(const std::out_of_range& e)
+    {  
+        cout << "Invalid number was passed as a parameter, check the history labels." << '\n';
         std::cerr << e.what() << '\n';
         return -1;
+    }
+    catch(const std::invalid_argument& e)
+    {
+        cout << "Invalid argument passed as paramter, pass a number." << '\n';
+        std::cerr << e.what() << '\n';
+        return -2;
     }
     
     return 0;
 }
 
-int program_validation(const vector<string>& tokens, string args[])
+int program_validation(vector<string> tokens, char* args[])
 {
     // [0] = command name
     // [1] = executing file
     // [1...n] = Arguments
     // [n] = NULL
+    int n = tokens.size() - 1;
 
-    int n = tokens.size();
-
-    for(int i = 1; i < n - 1; i++)
-    {
-        args[i] = tokens[i];
+    for(int i = 0; i < n; i++)
+    {   
+        // Allocate space for argument based on the length of the string.
+        // Plus 1 space is necessary for the '\0' operator to be copied from the c_str()
+        args[i] = (char *) malloc((sizeof(char) * tokens[i + 1].length()) + 1);
+        strcpy(args[i], tokens[i + 1].c_str());
+        
+        /*
+        // Used for testing purposes, to verify the contents of our stored strings.
+        for(int j = 0; j < tokens[i + 1].length() + 1; j++)
+        {
+            printf("%c", args[i][j]);
+            cout << '\n';
+        }
+        */
     }
+
+    // Execv expects NULL or nullptr to be the final element in the list.
+    args[n] = nullptr;
 
     return 0;
 }
 
 int start_program(const vector<string>& tokens)
 {
-    // Need to validate input here instead
-    // Makes more sense to handle its own validation based on what it expects.
-    string args[tokens.size()];
-
-    // if(program_validation(tokens, args) != 0)
-    //     return -1;
+ 
+    char* args[tokens.size() - 1];
     
-    args->c_str();
-
-    for(auto& arg : args)
-    {
-        cout << arg << '\n';
-    }
-
-    string program = tokens[0];
+    if(program_validation(tokens, args) != 0)
+        return -1;
+    
+    string program = tokens[1];
 
     string target_path = "";
-    
+
     if(program[0] == '/')
         target_path = program;
     else
@@ -219,20 +293,53 @@ int start_program(const vector<string>& tokens)
     
     int pid, status;
 
-    //if(!(pid = fork()))
-        //execvp(&target_path[0], args->c_str());
+    if(!(pid = fork()))
+        execvp(&target_path[0], args);
 
     perror("execvp");
 
     waitpid(-1, &status, 0);
-    
+
+    // Must free the memory allocated for the arguments
+    for (size_t i = 0; i < tokens.size() - 2; i++)
+    {
+        free(args[i]);
+    }
+
     return 0;
 }
 
 int background_program(const vector<string>& tokens)
 {
+    char* args[tokens.size() - 1];
+    
+    if(program_validation(tokens, args) != 0)
+        return -1;
+    
+    string program = tokens[1];
 
+    string target_path = "";
 
+    if(program[0] == '/')
+        target_path = program;
+    else
+        target_path = current_directory + '/' + program;
+    
+    int pid, status;
+
+    pid = fork();
+
+    if(pid == 0)
+        execvp(&target_path[0], args);
+
+    cout << "PID: " << pid << '\n'; 
+    //perror("execvp");
+
+    // Must free the memory allocated for the arguments
+    for (size_t i = 0; i < tokens.size() - 2; i++)
+    {
+        free(args[i]);
+    }
 
     return 0;
 }
@@ -289,9 +396,15 @@ void command_dispatcher(vector<string>& tokens)
 
         break;
     }
+    case BACKGROUND:
+    {   
+        background_program(tokens);
+
+        break;
+    }
     case HISTORY:
     {
-        history();
+        history(tokens);
         break;
     }
     case REPLAY:
@@ -363,6 +476,7 @@ int main () {
     commandMap["start"] = START;
     commandMap["history"] = HISTORY;
     commandMap["replay"] = REPLAY;
+    commandMap["bg"] = BACKGROUND;
 
     load_history(temp_history);
 
@@ -381,12 +495,18 @@ int main () {
 
         getline(std::cin, input);
 
-        // Save each line after inputs since we need this for the history.
-        temp_history.push_back(input);
 
         tokenize(input, tokens);
 
+        // for(auto& token : tokens)
+        // {
+        //     cout << token << '\n';
+        // }
+
         command_dispatcher(tokens);
+
+        // Save each line after inputs since we need this for the history.
+        temp_history.push_back(input);
     }
     
     save_history(temp_history);
