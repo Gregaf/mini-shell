@@ -3,6 +3,7 @@
 #include <string.h>
 #include <vector>
 #include <bits/stdc++.h>
+#include <signal.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
@@ -18,7 +19,8 @@ using std::stack;
 
 string current_directory = "/home/gregaf300/OS-Class/Assignment_2";
 vector<string> temp_history;
-stack<string> curent_dir_s;
+vector<string> tokens; 
+
 bool quit_flag = false;
 
 enum commands 
@@ -30,13 +32,16 @@ enum commands
     BACKGROUND,
     HISTORY,
     REPLAY,
-    INVALID
+    INVALID,
+    DALEK,
+    REPEAT,
 };
 
 map<string, commands> commandMap;
 
 void command_dispatcher(vector<string>& tokens);
 
+//worked on by Greg Frietas & Anthony Jackson
 int tokenize(string& line, vector<string>& tokens)
 {
     int counter = 0;
@@ -213,6 +218,7 @@ int replay_number(const string& number)
 {
     int target_number;
     
+
     try
     {
         // Conver the passed number to a integer.
@@ -270,34 +276,65 @@ int program_validation(vector<string> tokens, char* args[])
 
     // Execv expects NULL or nullptr to be the final element in the list.
     args[n] = nullptr;
-
+    
     return 0;
 }
 
+int file_exists(const char* path)
+{
+    struct stat buffer;
+
+    return (stat(path, &buffer) == 0);
+}
+
+string resolve_path(const string& path)
+{
+    // Absolute path, no need to modify.
+    if(path[0] == '/')
+    {
+        return path;
+    }
+    else
+    {
+        // Either relative, or Path variable.
+        string relative = current_directory + '/' + path;
+
+        int code = file_exists(relative.c_str());
+
+        if(code == 1) return relative;
+    }
+
+    return path;
+}
+
+
 int start_program(const vector<string>& tokens)
 {
- 
+    
     char* args[tokens.size() - 1];
     
+    // Formats the args to be passed to exec with a nullptr to terminate the list. 
     if(program_validation(tokens, args) != 0)
         return -1;
     
     string program = tokens[1];
 
-    string target_path = "";
+    // Path gets resolved based on whether it is Absolute, relative, or in PATH
+    string target_path = resolve_path(program);
 
-    if(program[0] == '/')
-        target_path = program;
-    else
-        target_path = current_directory + '/' + program;
-    
+    cout << target_path << '\n';
+
     int pid, status;
 
+    // If PID == 0, it is the child process
     if(!(pid = fork()))
+    {
+        // Copy the child process with the new executable based on our specified path and args.
         execvp(&target_path[0], args);
+        perror("execvp");
+    }
 
-    perror("execvp");
-
+    // Parent process waits for the child process to finish.
     waitpid(-1, &status, 0);
 
     // Must free the memory allocated for the arguments
@@ -318,23 +355,38 @@ int background_program(const vector<string>& tokens)
     
     string program = tokens[1];
 
-    string target_path = "";
+    string target_path = resolve_path(program);
 
-    if(program[0] == '/')
-        target_path = program;
-    else
-        target_path = current_directory + '/' + program;
-    
-    int pid, status;
+    pid_t pid;
+    int status;
+
+    for(auto& arg : args)
+    {
+        cout << arg << '\n';
+    }
 
     pid = fork();
 
-    if(pid == 0)
-        execvp(&target_path[0], args);
+    // One process is your Parent which has the PID of the child.
+    // Other process is the Child with a PID of 0
 
-    cout << "PID: " << pid << '\n'; 
-    //perror("execvp");
-
+    if(0 == pid)
+    {
+        execvp(target_path.c_str(), args);
+        waitpid(pid, &status, WNOHANG);
+        exit(0);
+    }
+    else 
+    {
+        auto func = [](int signum)
+        {
+            int exitStatus;
+            wait(&exitStatus);
+            cout << exitStatus << '\n';
+        };
+        signal(SIGCHLD, func);
+        cout << "PID: " << pid << '\n';
+    }
     // Must free the memory allocated for the arguments
     for (size_t i = 0; i < tokens.size() - 2; i++)
     {
@@ -344,13 +396,33 @@ int background_program(const vector<string>& tokens)
     return 0;
 }
 
-int dalek()
-{
+int dalek(const string& pid)
+{   
+    pid_t pidVal = std::stoi(pid);
+    int signal = kill(pidVal, SIGKILL);
+    
+    if (signal == 0)
+        cout << "Success" << '\n';
+    else 
+        cout << "Failed" << '\n';
+
     return 0;
 }
 
-int repeat()
+// # repeat n command worked on by Anthony Jackson
+int repeat(const vector<string>& tokens)
 {
+    vector<string> newToken;
+
+    for(int i = 2; i < tokens.size(); i++)
+        newToken.emplace_back(tokens[i]);
+    
+    int repeatnum = std::stoi(tokens[1]);
+
+    // 1 loop times, index 2 for command anything past index 2 are arguments that are supplied.
+    for(int i = 0; i < repeatnum; i++)
+        background_program(newToken);
+
     return 0;
 }
 
@@ -410,6 +482,19 @@ void command_dispatcher(vector<string>& tokens)
     case REPLAY:
     {
         replay_number(tokens[1]);
+        break;
+    }
+    case DALEK:
+    {
+        dalek(tokens[1]);
+        break;
+    }
+    case REPEAT:
+    {
+        // Command = repeat 4 echo
+        // tokens = ["repeat", "4", "echo"]
+        // tokens[1] = 4
+        repeat(tokens);
         break;
     }
     default:
@@ -477,6 +562,8 @@ int main () {
     commandMap["history"] = HISTORY;
     commandMap["replay"] = REPLAY;
     commandMap["bg"] = BACKGROUND;
+    commandMap["dalek"] = DALEK;
+    commandMap["repeat"] = REPEAT;
 
     load_history(temp_history);
 
@@ -490,7 +577,7 @@ int main () {
         cout << current_directory;
         // Once accepting input and what not, it will always lead with a #
         cout << "# ";
-
+        cout.flush();
         input = "";
 
         getline(std::cin, input);
