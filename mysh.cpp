@@ -20,6 +20,7 @@ using std::stack;
 string current_directory = "/home/gregaf300/OS-Class/Assignment_2";
 vector<string> temp_history;
 vector<string> tokens; 
+vector<int> pid_history;
 
 bool quit_flag = false;
 
@@ -35,6 +36,7 @@ enum commands
     INVALID,
     DALEK,
     REPEAT,
+    DALEK_ALL
 };
 
 map<string, commands> commandMap;
@@ -249,20 +251,27 @@ int replay_number(const string& number)
     return 0;
 }
 
-int program_validation(vector<string> tokens, char* args[])
+void seperate_args(vector<string>& tokens)
+{
+
+
+}
+
+
+int program_validation(vector<string> program_tokens, char* args[])
 {
     // [0] = command name
     // [1] = executing file
     // [1...n] = Arguments
     // [n] = NULL
-    int n = tokens.size() - 1;
+    int n = program_tokens.size();
 
     for(int i = 0; i < n; i++)
     {   
         // Allocate space for argument based on the length of the string.
         // Plus 1 space is necessary for the '\0' operator to be copied from the c_str()
-        args[i] = (char *) malloc((sizeof(char) * tokens[i + 1].length()) + 1);
-        strcpy(args[i], tokens[i + 1].c_str());
+        args[i] = (char *) malloc((sizeof(char) * program_tokens[i].length()) + 1);
+        strcpy(args[i], program_tokens[i].c_str());
         
         /*
         // Used for testing purposes, to verify the contents of our stored strings.
@@ -326,17 +335,26 @@ int start_program(const vector<string>& tokens)
 
     int pid, status;
 
+    for(auto& arg : args)
+    {
+        cout << arg << '\n';
+    }
+
     // If PID == 0, it is the child process
     if(!(pid = fork()))
     {
         // Copy the child process with the new executable based on our specified path and args.
         execvp(&target_path[0], args);
         perror("execvp");
+        exit(-1);
+        cout << "Ye boi" << '\n';
     }
+
+    pid_history.push_back(pid);
 
     // Parent process waits for the child process to finish.
     waitpid(-1, &status, 0);
-
+    
     // Must free the memory allocated for the arguments
     for (size_t i = 0; i < tokens.size() - 2; i++)
     {
@@ -346,24 +364,19 @@ int start_program(const vector<string>& tokens)
     return 0;
 }
 
-int background_program(const vector<string>& tokens)
+int background_program(const vector<string>& program_tokens)
 {
-    char* args[tokens.size() - 1];
+    char* passed_args[(program_tokens.size() + 1)];
     
-    if(program_validation(tokens, args) != 0)
+    if(program_validation(program_tokens, passed_args) != 0)
         return -1;
     
-    string program = tokens[1];
+    string program = program_tokens[0];
 
     string target_path = resolve_path(program);
 
     pid_t pid;
     int status;
-
-    for(auto& arg : args)
-    {
-        cout << arg << '\n';
-    }
 
     pid = fork();
 
@@ -372,39 +385,55 @@ int background_program(const vector<string>& tokens)
 
     if(0 == pid)
     {
-        execvp(target_path.c_str(), args);
-        waitpid(pid, &status, WNOHANG);
-        exit(0);
+        execvp(target_path.c_str(), passed_args);
+        // waitpid(pid, &status, WNOHANG);
+        // exit(0);
+        perror("execvp");
+        exit(-1);
     }
     else 
     {
-        auto func = [](int signum)
-        {
-            int exitStatus;
-            wait(&exitStatus);
-            cout << exitStatus << '\n';
-        };
-        signal(SIGCHLD, func);
+        // auto func = [](int signum)
+        // {
+        //     int exitStatus;
+        //     wait(&exitStatus);
+        //     cout << exitStatus << '\n';
+        // };
+        //signal(SIGCHLD, func);
+        pid_history.push_back(pid);
         cout << "PID: " << pid << '\n';
     }
+
     // Must free the memory allocated for the arguments
-    for (size_t i = 0; i < tokens.size() - 2; i++)
+    for (size_t i = 0; i < program_tokens.size() - 1; i++)
     {
-        free(args[i]);
+        free(passed_args[i]);
     }
 
     return 0;
 }
 
+// Worked on by Kensal Ramos
 int dalek(const string& pid)
 {   
     pid_t pidVal = std::stoi(pid);
     int signal = kill(pidVal, SIGKILL);
     
     if (signal == 0)
+    {
+
+        for (int i = 0; i < pid_history.size(); i++) 
+        {
+            if (pid_history[i] == pidVal) 
+                pid_history.erase(pid_history.begin() + i);
+        }
+
         cout << "Success" << '\n';
-    else 
+    }
+    else
+    {
         cout << "Failed" << '\n';
+    }
 
     return 0;
 }
@@ -419,6 +448,11 @@ int repeat(const vector<string>& tokens)
     
     int repeatnum = std::stoi(tokens[1]);
 
+    for(auto& token : newToken)
+    {
+        cout << token << '\n';
+    }
+
     // 1 loop times, index 2 for command anything past index 2 are arguments that are supplied.
     for(int i = 0; i < repeatnum; i++)
         background_program(newToken);
@@ -426,8 +460,18 @@ int repeat(const vector<string>& tokens)
     return 0;
 }
 
+// Worked on by Kensal Ramos
 int dalek_all()
 {
+
+    cout << "Terminating " << pid_history.size() << " Processes: ";
+    while(pid_history.size() != 0) 
+    {
+        // TODO: Add case when dalek fails
+        cout << pid_history[0] << " ";
+        dalek(std::to_string(pid_history[0]));
+    }
+    
     return 0;
 }
 
@@ -464,12 +508,20 @@ void command_dispatcher(vector<string>& tokens)
         break;
     case START:
     {   
+
+
+
+
         start_program(tokens);
 
         break;
     }
     case BACKGROUND:
     {   
+        
+        // First argument is the command itself. Second is the program, rest are the args.
+        tokens.erase(tokens.begin());
+
         background_program(tokens);
 
         break;
@@ -495,6 +547,11 @@ void command_dispatcher(vector<string>& tokens)
         // tokens = ["repeat", "4", "echo"]
         // tokens[1] = 4
         repeat(tokens);
+        break;
+    }
+    case DALEK_ALL:
+    {
+        dalek_all();
         break;
     }
     default:
@@ -564,6 +621,7 @@ int main () {
     commandMap["bg"] = BACKGROUND;
     commandMap["dalek"] = DALEK;
     commandMap["repeat"] = REPEAT;
+    commandMap["dalek_all"] = DALEK_ALL;
 
     load_history(temp_history);
 
