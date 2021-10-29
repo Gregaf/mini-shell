@@ -1,3 +1,5 @@
+// Team: Gregory Freitas, Anthony Jackson, Kensal Ramos
+
 #include <iostream>
 #include <fstream>
 #include <string.h>
@@ -599,9 +601,6 @@ void command_dispatcher(vector<string> tokens)
     }
     case REPEAT:
     {
-        // Command = repeat 4 echo
-        // tokens = ["repeat", "4", "echo"]
-        // tokens[1] = 4
         repeat(tokens);
         break;
     }
