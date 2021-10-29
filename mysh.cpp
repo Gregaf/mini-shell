@@ -17,9 +17,8 @@ using std::vector;
 using std::map;
 using std::stack;
 
-string current_directory = "/home/gregaf300/OS-Class/Assignment_2";
+string current_directory = "/";
 vector<string> temp_history;
-vector<string> tokens; 
 vector<int> pid_history;
 
 bool quit_flag = false;
@@ -41,7 +40,7 @@ enum commands
 
 map<string, commands> commandMap;
 
-void command_dispatcher(vector<string>& tokens);
+void command_dispatcher(const vector<string> tokens);
 
 //worked on by Greg Frietas & Anthony Jackson
 int tokenize(string& line, vector<string>& tokens)
@@ -74,6 +73,7 @@ int tokenize(string& line, vector<string>& tokens)
     return 0;
 }
 
+// Anthony Jackson worked on this function.
 // This handles relative path .. and . to allow for forward and backward traversing.
 string fix_path(string& fixed_path)
 {
@@ -108,6 +108,7 @@ string fix_path(string& fixed_path)
     return new_path;
 }
 
+// Gregory Freitas worked on this function.
 int move_to_dir(string path)
 {
     if(path.length() <= 0)
@@ -155,23 +156,25 @@ int move_to_dir(string path)
     return 0;
 }
 
+// Gregory Freitas worked on this function.
 int where_am_i()
 {
     if (current_directory == "")
         return 1;
-
+    
 
     cout << current_directory << '\n';
 
     return 0;
 }
 
+// Kensal Ramos worked on this function.
 int history(const vector<string>& tokens)
 {
     // We have more than one argument
     if(tokens.size() > 2)
     {
-        cout << "Invalid number of arguments." << '\n';
+        std::cerr << "Invalid number of arguments." << '\n';
         return -1;
     }
 
@@ -189,7 +192,7 @@ int history(const vector<string>& tokens)
         }
         else
         {
-            cout << "Invalid argument passed" << '\n';
+            std::cerr << "Invalid argument passed" << '\n';
             return -1;
         }
     }
@@ -209,6 +212,7 @@ int history(const vector<string>& tokens)
     return 0;
 }
 
+// Anthony Jackson worked on this function.
 int bye_bye()
 {
     quit_flag = true;
@@ -216,11 +220,11 @@ int bye_bye()
     return 0;
 }
 
+// Anthony Jackson worked on this function.
 int replay_number(const string& number)
 {
     int target_number;
     
-
     try
     {
         // Conver the passed number to a integer.
@@ -237,31 +241,24 @@ int replay_number(const string& number)
     }
     catch(const std::out_of_range& e)
     {  
-        cout << "Invalid number was passed as a parameter, check the history labels." << '\n';
-        std::cerr << e.what() << '\n';
+        std::cerr << "Invalid number was passed as a parameter, check the history labels." << '\n';
+        // std::cerr << e.what() << '\n';
         return -1;
     }
     catch(const std::invalid_argument& e)
     {
-        cout << "Invalid argument passed as paramter, pass a number." << '\n';
-        std::cerr << e.what() << '\n';
+        std::cerr << "Invalid argument passed as paramter, pass a number." << '\n';
+        // std::cerr << e.what() << '\n';
         return -2;
     }
     
     return 0;
 }
 
-void seperate_args(vector<string>& tokens)
-{
-
-
-}
-
-
+// Gregory Freitas worked on this.
 int program_validation(vector<string> program_tokens, char* args[])
 {
-    // [0] = command name
-    // [1] = executing file
+    // [0] = executing file
     // [1...n] = Arguments
     // [n] = NULL
     int n = program_tokens.size();
@@ -289,6 +286,7 @@ int program_validation(vector<string> program_tokens, char* args[])
     return 0;
 }
 
+// Anthony Jackson
 int file_exists(const char* path)
 {
     struct stat buffer;
@@ -296,6 +294,7 @@ int file_exists(const char* path)
     return (stat(path, &buffer) == 0);
 }
 
+// Gregory Freitas worked on this function.
 string resolve_path(const string& path)
 {
     // Absolute path, no need to modify.
@@ -316,38 +315,32 @@ string resolve_path(const string& path)
     return path;
 }
 
-
-int start_program(const vector<string>& tokens)
+// Gregory Freitas worked on this function.
+int start_program(const vector<string> program_tokens)
 {
     
-    char* args[tokens.size() - 1];
+    char* passed_args[(program_tokens.size() + 1)];
     
     // Formats the args to be passed to exec with a nullptr to terminate the list. 
-    if(program_validation(tokens, args) != 0)
+    if(program_validation(program_tokens, passed_args) != 0)
         return -1;
     
-    string program = tokens[1];
+    string program = program_tokens[0];
 
     // Path gets resolved based on whether it is Absolute, relative, or in PATH
     string target_path = resolve_path(program);
 
-    cout << target_path << '\n';
+    //cout << target_path << '\n';
 
     int pid, status;
-
-    for(auto& arg : args)
-    {
-        cout << arg << '\n';
-    }
 
     // If PID == 0, it is the child process
     if(!(pid = fork()))
     {
         // Copy the child process with the new executable based on our specified path and args.
-        execvp(&target_path[0], args);
+        execvp(&target_path[0], passed_args);
         perror("execvp");
         exit(-1);
-        cout << "Ye boi" << '\n';
     }
 
     pid_history.push_back(pid);
@@ -355,55 +348,6 @@ int start_program(const vector<string>& tokens)
     // Parent process waits for the child process to finish.
     waitpid(-1, &status, 0);
     
-    // Must free the memory allocated for the arguments
-    for (size_t i = 0; i < tokens.size() - 2; i++)
-    {
-        free(args[i]);
-    }
-
-    return 0;
-}
-
-int background_program(const vector<string>& program_tokens)
-{
-    char* passed_args[(program_tokens.size() + 1)];
-    
-    if(program_validation(program_tokens, passed_args) != 0)
-        return -1;
-    
-    string program = program_tokens[0];
-
-    string target_path = resolve_path(program);
-
-    pid_t pid;
-    int status;
-
-    pid = fork();
-
-    // One process is your Parent which has the PID of the child.
-    // Other process is the Child with a PID of 0
-
-    if(0 == pid)
-    {
-        execvp(target_path.c_str(), passed_args);
-        // waitpid(pid, &status, WNOHANG);
-        // exit(0);
-        perror("execvp");
-        exit(-1);
-    }
-    else 
-    {
-        // auto func = [](int signum)
-        // {
-        //     int exitStatus;
-        //     wait(&exitStatus);
-        //     cout << exitStatus << '\n';
-        // };
-        //signal(SIGCHLD, func);
-        pid_history.push_back(pid);
-        cout << "PID: " << pid << '\n';
-    }
-
     // Must free the memory allocated for the arguments
     for (size_t i = 0; i < program_tokens.size() - 1; i++)
     {
@@ -413,34 +357,108 @@ int background_program(const vector<string>& program_tokens)
     return 0;
 }
 
-// Worked on by Kensal Ramos
-int dalek(const string& pid)
-{   
-    pid_t pidVal = std::stoi(pid);
-    int signal = kill(pidVal, SIGKILL);
-    
-    if (signal == 0)
+// Kensal Ramos worked on this function.
+int background_program(const vector<string> program_tokens, bool silent = false)
+{
+    if(program_tokens.size() == 0)
     {
+        std::cerr << "This command requires arguments to be passed!" << '\n';
+        return 1;
+    }
 
-        for (int i = 0; i < pid_history.size(); i++) 
+    char* passed_args[(program_tokens.size() + 1)];
+    
+    if(program_validation(program_tokens, passed_args) != 0)
+        return -1;
+    
+    string program = program_tokens[0];
+    
+    string target_path = resolve_path(program);
+
+    int exitCode = 0;
+
+    pid_t pid;
+    int status;
+
+    pid = fork();
+
+    // One process is your Parent which has the PID of the child.
+    // Other process is the Child with a PID of 0
+    
+    if(0 == pid)
+    {
+        execvp(target_path.c_str(), passed_args);
+        perror("execvp");
+        exit(-1);
+    }
+    else 
+    {
+        pid_history.push_back(pid);
+
+        if (!silent)
+            cout << "PID: " << pid << '\n';
+    }
+
+    // Must free the memory allocated for the arguments
+    for (size_t i = 0; i < program_tokens.size() - 1; i++)
+    {
+        free(passed_args[i]);
+    }
+
+    return exitCode;
+}
+
+// Kensal Ramos worked on this function.
+int dalek(const string pid, bool silent = false)
+{   
+    try
+    {
+        pid_t pidVal = std::stoi(pid);
+        int signal = kill(pidVal, SIGKILL);
+        
+        if (signal == 0)
         {
-            if (pid_history[i] == pidVal) 
-                pid_history.erase(pid_history.begin() + i);
+
+            for (int i = 0; i < pid_history.size(); i++) 
+            {
+                if (pid_history[i] == pidVal) 
+                    pid_history.erase(pid_history.begin() + i);
+            }
+
+            if(!silent)
+                cout << "Successfully killed PID: " << pid << '\n';
+
+            return 0;
+        }
+        else
+        {
+            if(!silent)
+                cout << "Failed to kill PID: " << pid << '\n';
+
+            return 1;
         }
 
-        cout << "Success" << '\n';
+       
     }
-    else
+    catch(const std::exception& e)
     {
-        cout << "Failed" << '\n';
+        // std::cerr << e.what() << '\n';
+        std::cerr << "Invalid argument type passed, try a number." << '\n';
+        return 1;
     }
 
     return 0;
 }
 
-// # repeat n command worked on by Anthony Jackson
-int repeat(const vector<string>& tokens)
+// Anthony Jackson worked on this function.
+int repeat(const vector<string> tokens)
 {
+    if(tokens.size() < 3)
+    {
+        std::cerr << "Not enough arguments passed!" << '\n';
+        return 1;
+    }
+
     vector<string> newToken;
 
     for(int i = 2; i < tokens.size(); i++)
@@ -448,34 +466,50 @@ int repeat(const vector<string>& tokens)
     
     int repeatnum = std::stoi(tokens[1]);
 
-    for(auto& token : newToken)
+    for (int i = 0; i < repeatnum; i++)
     {
-        cout << token << '\n';
+        int code = background_program(newToken, true);
+        
+        if(code) break;
+        
+        if (i == 0)
+            cout << "PIDs: ";
+        
+        cout << pid_history[pid_history.size() - 1] << ' ';
     }
 
-    // 1 loop times, index 2 for command anything past index 2 are arguments that are supplied.
-    for(int i = 0; i < repeatnum; i++)
-        background_program(newToken);
+    cout << '\n';
 
     return 0;
 }
 
-// Worked on by Kensal Ramos
+// Kensal Ramos worked on this function.
 int dalek_all()
 {
+    if (pid_history.size() == 0) {
+        cout << "0 processes terminated." << '\n';
+        return 0;
+    }
+    cout << "Terminating " << pid_history.size() << " processes: ";
+    
+    int i = 0;
 
-    cout << "Terminating " << pid_history.size() << " Processes: ";
     while(pid_history.size() != 0) 
     {
-        // TODO: Add case when dalek fails
-        cout << pid_history[0] << " ";
-        dalek(std::to_string(pid_history[0]));
+        cout << pid_history[i] << " ";
+        // If dalek fails, move on
+        if (dalek(std::to_string(pid_history[i]), true) == 1) {
+            i++;
+        }
     }
-    
+
+    cout << '\n';
+
     return 0;
 }
 
-void command_dispatcher(vector<string>& tokens)
+// We all contributed to this function.
+void command_dispatcher(vector<string> tokens)
 {
     if(tokens.size() < 1)
        return;
@@ -491,16 +525,22 @@ void command_dispatcher(vector<string>& tokens)
     }
     catch(const std::exception& e)
     {
-        std::cerr << e.what() << '\n';
+        //std::cerr << e.what() << '\n';
     }
     
-    
+
     switch (command)
     {
     case WHEREAMI:
         where_am_i();
         break;
     case MOVETODIR:
+        if(tokens.size() < 2)
+        {
+            std::cerr << "Invalid number of arguments!" << '\n';
+            break;
+        }
+
         move_to_dir(tokens[1]);
         break;
     case BYEBYE:
@@ -508,9 +548,13 @@ void command_dispatcher(vector<string>& tokens)
         break;
     case START:
     {   
-
-
-
+        if(tokens.size() < 2)
+        {
+            std::cerr << "Invalid number of arguments!" << '\n';
+            break;
+        }
+        
+        tokens.erase(tokens.begin());
 
         start_program(tokens);
 
@@ -518,7 +562,11 @@ void command_dispatcher(vector<string>& tokens)
     }
     case BACKGROUND:
     {   
-        
+        if(tokens.size() < 2)
+        {
+            std::cerr << "Invalid number of arguments!" << '\n';
+            break;
+        }
         // First argument is the command itself. Second is the program, rest are the args.
         tokens.erase(tokens.begin());
 
@@ -538,7 +586,15 @@ void command_dispatcher(vector<string>& tokens)
     }
     case DALEK:
     {
-        dalek(tokens[1]);
+        if(tokens.size() < 2)
+        {
+            std::cerr << "Invalid number of arguments!" << '\n';
+            break;
+        }
+
+        string arg = tokens[1];
+            
+        dalek(arg);   
         break;
     }
     case REPEAT:
@@ -551,6 +607,12 @@ void command_dispatcher(vector<string>& tokens)
     }
     case DALEK_ALL:
     {
+        if(tokens.size() > 1)
+        {
+            std::cerr << "This command does not take any arguments." << '\n';
+            break;
+        }
+
         dalek_all();
         break;
     }
@@ -560,6 +622,7 @@ void command_dispatcher(vector<string>& tokens)
     }
 }
 
+// Kensal Ramos worked on this function.
 int load_history(vector<string>& history)
 {
     string line;
@@ -577,13 +640,15 @@ int load_history(vector<string>& history)
     else
     {
         std::cerr << "Unable to open file." << '\n';
+        std::ofstream NewFile("history.log");
+        cout << "Creating 'history.log' file..." << '\n';
         return 1;
     }
-
 
     return 0;
 }  
 
+// Kensal Ramos worked on this function.
 int save_history(vector<string>& history)
 {
     std::ofstream history_file("history.log");
@@ -612,19 +677,18 @@ int main () {
 
     vector<string> tokens;
 
-    commandMap["pwd"] = WHEREAMI;
-    commandMap["move"] = MOVETODIR;
-    commandMap["bye"] = BYEBYE;
+    commandMap["whereami"] = WHEREAMI;
+    commandMap["movetodir"] = MOVETODIR;
+    commandMap["byebye"] = BYEBYE;
     commandMap["start"] = START;
     commandMap["history"] = HISTORY;
     commandMap["replay"] = REPLAY;
-    commandMap["bg"] = BACKGROUND;
+    commandMap["background"] = BACKGROUND;
     commandMap["dalek"] = DALEK;
     commandMap["repeat"] = REPEAT;
-    commandMap["dalek_all"] = DALEK_ALL;
+    commandMap["dalekall"] = DALEK_ALL;
 
     load_history(temp_history);
-
 
     while (!quit_flag)
     {
@@ -632,14 +696,13 @@ int main () {
         tokens.clear();
 
         // To show the currentDirectory to view navigation.
-        cout << current_directory;
+        // cout << current_directory;
         // Once accepting input and what not, it will always lead with a #
         cout << "# ";
         cout.flush();
         input = "";
 
         getline(std::cin, input);
-
 
         tokenize(input, tokens);
 
